@@ -1,0 +1,18 @@
+# Основной фреймворк
+# Устанавливать отдельно с сайта pytorch.org под свою версию CUDA:
+# https://pytorch.org/get-started/locally/
+# Пример для CUDA 12.4:
+# pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+torch>=2.6.0
+torchvision>=0.21.0
+
+# Данные и вычисления
+numpy>=1.24.0
+
+# Прогресс-бар
+tqdm>=4.65.0
+
+# Метрики и визуализация
+scikit-learn>=1.3.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
