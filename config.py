@@ -24,6 +24,26 @@ class Config:
 
 os.makedirs(Config.MODEL_SAVE_PATH, exist_ok=True)
 
+class ConfigExpW: #TODO: changes for dataset ExpW
+    DATA_PATH       = r'C:\Users\levsh\Documents\TT-GhostNetV2\data\fer2013'
+    MODEL_SAVE_PATH = r'C:\Users\levsh\Documents\TT-GhostNetV2\models2'
+
+    IN_CHANNELS   = 1
+    IMAGE_SIZE    = 48
+    NUM_CLASSES   = 7
+
+    BATCH_SIZE    = 64
+    NUM_EPOCHS    = 60
+    LEARNING_RATE = 5e-4
+    WEIGHT_DECAY  = 3e-4
+    RANK          = 16
+
+    VAL_SPLIT     = 0.2
+    NUM_WORKERS   = 0 if os.name == 'nt' else 4
+    SEED          = 42
+    DEVICE        = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+os.makedirs(Config.MODEL_SAVE_PATH, exist_ok=True)
 #Трансформы
 train_transform_base = transforms.Compose([
     transforms.Grayscale(num_output_channels=1),
@@ -54,3 +74,4 @@ val_transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.5], std=[0.5])
 ])
+
