@@ -56,8 +56,6 @@ class TTCrossLinear(nn.Module):
         строк/столбцов (maxvol-алгоритм). Здесь используется TT-SVD как детерминированная
         альтернатива, дающая оптимальное разложение заданного ранга.
         """
-        if max_rank is None:
-            max_rank = self.rank
 
         W = linear.weight.data  # (out_features, in_features) = (128, 960)
 
@@ -65,17 +63,20 @@ class TTCrossLinear(nn.Module):
         n1, n2, n3 = self.IN_MODES   # 8, 8, 15
         m1, m2, m3 = self.OUT_MODES  # 4, 4, 8
 
-        # W: (128, 960) → (m1, m2, m3, n1, n2, n3) → (n1, n2, n3, m1, m2, m3)
-        T = W.reshape(m1, m2, m3, n1, n2, n3).permute(3, 4, 5, 0, 1, 2)
-        # T: (8, 8, 15, 4, 4, 8)
+        T = W.reshape(4, 8, 4, 8, 8, 15)
+        T = T.reshape(32, 32, 120)
+        # (4*8, 4*8, 8*15) — моды объединены попарно сразу, 3 моды вместо 6
 
-        cores = _tt_svd(T, max_rank=max_rank)
-        # cores[k] имеет форму (r_{k-1}, mode_k, r_k)
-        # Нам нужна форма (r_{k-1}, n_k, m_k, r_k) — объединяем пары мод
+        G1_raw, G2_raw, G3_raw = _tt_svd(T, max_rank=self.rank)
 
-        G1, G2, G3 = _reshape_cores(cores, n1, n2, n3, m1, m2, m3)
+        # Разворачиваем объединённые моды обратно в форму ядер
+        r1 = G1_raw.shape[2]
+        r2 = G2_raw.shape[2]
 
-        # Обрезаем или дополняем до self.rank
+        G1 = G1_raw.reshape(1,  4, 8, r1).permute(0, 2, 1, 3)  # (1,  8, 4, r1)
+        G2 = G2_raw.reshape(r1, 4, 8, r2).permute(0, 2, 1, 3)  # (r1, 8, 4, r2)
+        G3 = G3_raw.reshape(r2, 8, 15, 1).permute(0, 2, 1, 3)  # (r2, 15, 8, 1)
+
         G1, G2, G3 = _fit_rank(G1, G2, G3, self.rank)
 
         with torch.no_grad():
@@ -123,67 +124,24 @@ def _tt_svd(T: torch.Tensor, max_rank: int) -> list:
 
     Возвращает список ядер cores[k] формы (r_{k-1}, d_k, r_k).
     """
-    shape = T.shape
-    d     = len(shape)
-    cores = []
-    r_prev = 1
-    C = T.reshape(r_prev, -1)  # текущий остаток
+    d1, d2, d3 = T.shape
 
-    for k in range(d - 1):
-        n_k = shape[k]
-        C   = C.reshape(r_prev * n_k, -1)
+    # Шаг 1: SVD по первой моде
+    C = T.reshape(d1, d2 * d3)
+    U, S, Vh = torch.linalg.svd(C, full_matrices=False)
+    r1 = min(max_rank, S.shape[0])
+    G1 = U[:, :r1].reshape(1, d1, r1)
+    C  = torch.diag(S[:r1]) @ Vh[:r1, :]
 
-        # SVD
-        U, S, Vh = torch.linalg.svd(C, full_matrices=False)
+    # Шаг 2: SVD по второй моде
+    C = C.reshape(r1 * d2, d3)
+    U, S, Vh = torch.linalg.svd(C, full_matrices=False)
+    r2 = min(max_rank, S.shape[0])
+    G2 = U[:, :r2].reshape(r1, d2, r2)
+    C  = torch.diag(S[:r2]) @ Vh[:r2, :]
 
-        # Обрезаем до max_rank
-        r_k = min(max_rank, S.shape[0])
-        U   = U[:, :r_k]
-        S   = S[:r_k]
-        Vh  = Vh[:r_k, :]
-
-        # Ядро: (r_prev, n_k, r_k)
-        G_k = U.reshape(r_prev, n_k, r_k)
-        cores.append(G_k)
-
-        # Остаток для следующего шага
-        C     = torch.diag(S) @ Vh
-        r_prev = r_k
-
-    # Последнее ядро
-    cores.append(C.reshape(r_prev, shape[-1], 1))
-
-    return cores
-
-
-def _reshape_cores(cores: list, n1, n2, n3, m1, m2, m3) -> tuple:
-    """
-    TT-SVD работает по отдельным модам (n1, n2, n3, m1, m2, m3).
-    Нам нужны ядра по парам мод (n_k, m_k).
-
-    Объединяем соседние ядра:
-        G1  cores[0] × cores[3]  (мода n1 и мода m1)
-        G2  cores[1] × cores[4]  (мода n2 и мода m2)
-        G3  cores[2] × cores[5]  (мода n3 и мода m3)
-
-    Результирующие ядра имеют форму (r_{k-1}, n_k, m_k, r_k).
-    """
-    # cores[0]: (1,  n1, r1)  cores[3]: (r3, m1, r4)
-    # cores[1]: (r1, n2, r2)  cores[4]: (r4, m2, r5)
-    # cores[2]: (r2, n3, r3)  cores[5]: (r5, m3, 1)
-
-    # Контрактируем пары через промежуточные ранги
-    # Для простоты объединяем мод-пары напрямую:
-
-    def merge(Gn, Gm):
-        # Gn: (r_l, n_k, r_mid)
-        # Gm: (r_mid, m_k, r_r)
-        # → (r_l, n_k, m_k, r_r)  через einsum по r_mid
-        return torch.einsum('lnr, rms -> lnms', Gn, Gm)
-
-    G1 = merge(cores[0], cores[3])  # (1,  n1, m1, r)
-    G2 = merge(cores[1], cores[4])  # (r,  n2, m2, r)
-    G3 = merge(cores[2], cores[5])  # (r,  n3, m3, 1)
+    # Шаг 3: последнее ядро
+    G3 = C.reshape(r2, d3, 1)
 
     return G1, G2, G3
 

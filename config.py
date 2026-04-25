@@ -3,6 +3,11 @@ import torch
 from torchvision import transforms
 
 #Config
+
+#Второй датасет ExpW
+#https://www.kaggle.com/datasets/nguhaduong/expression-in-the-wild-expw-dataset/data
+
+
 class Config:
     DATA_PATH       = r'C:\Users\levsh\Documents\TT-GhostNetV2\data\fer2013'
     MODEL_SAVE_PATH = r'C:\Users\levsh\Documents\TT-GhostNetV2\models'
@@ -25,7 +30,7 @@ class Config:
 os.makedirs(Config.MODEL_SAVE_PATH, exist_ok=True)
 
 class ConfigExpW: #TODO: changes for dataset ExpW
-    DATA_PATH       = r'C:\Users\levsh\Documents\TT-GhostNetV2\data\fer2013'
+    DATA_PATH       = r'C:\Users\levsh\Documents\TT-GhostNetV2\data\ExpW'
     MODEL_SAVE_PATH = r'C:\Users\levsh\Documents\TT-GhostNetV2\models2'
 
     IN_CHANNELS   = 1
