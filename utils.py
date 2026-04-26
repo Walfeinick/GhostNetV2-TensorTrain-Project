@@ -4,7 +4,9 @@ import numpy as np
 import torch
 import torch.optim as optim
 from tqdm import tqdm
-
+from torch.utils.data import DataLoader, random_split, Dataset
+from torchvision.datasets import ImageFolder
+from PIL import Image
 
 #Seed
 def set_seed(seed: int = 42):
@@ -55,3 +57,31 @@ def run_epoch(model, loader, criterion, optimizer, scaler, device, use_amp, trai
             pbar.set_postfix(loss=f'{loss.item():.4f}', acc=f'{100*correct/total:.1f}%')
 
     return total_loss / len(loader), 100 * correct / total
+
+
+def _split(dataset, val_fraction, seed):
+    n_val   = int(len(dataset) * val_fraction)
+    n_train = len(dataset) - n_val
+    return _split_sizes(dataset, [n_train, n_val], seed)
+
+
+def _split_sizes(dataset, sizes, seed):
+    return random_split(dataset, sizes,
+                        generator=torch.Generator().manual_seed(seed))
+
+
+def _make_loaders(train_ds, val_ds, test_ds, cfg, classes):
+    train_loader = DataLoader(train_ds, batch_size=cfg.BATCH_SIZE,
+                              shuffle=True,  num_workers=cfg.NUM_WORKERS,
+                              pin_memory=True)
+    val_loader   = DataLoader(val_ds,   batch_size=cfg.BATCH_SIZE,
+                              shuffle=False, num_workers=cfg.NUM_WORKERS,
+                              pin_memory=True)
+    test_loader  = DataLoader(test_ds,  batch_size=cfg.BATCH_SIZE,
+                              shuffle=False, num_workers=cfg.NUM_WORKERS,
+                              pin_memory=True)
+
+    print(f"Train: {len(train_ds)} | Val: {len(val_ds)} | Test: {len(test_ds)}")
+    print(f"Классы: {classes}")
+    return train_loader, val_loader, test_loader
+

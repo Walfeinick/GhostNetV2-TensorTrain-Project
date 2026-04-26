@@ -1,7 +1,7 @@
 import os
 import torch
 from torchvision import transforms
-
+from utils import _split, _split_sizes, _make_loaders
 #Config
 
 #Второй датасет ExpW
@@ -29,10 +29,10 @@ class Config:
 
 os.makedirs(Config.MODEL_SAVE_PATH, exist_ok=True)
 
-class ConfigExpW: #TODO: changes for dataset ExpW
+class ConfigExpW: #TODO: integrate dataset and train CNNs
     DATA_PATH       = r'C:\Users\levsh\Documents\TT-GhostNetV2\data\ExpW'
     MODEL_SAVE_PATH = r'C:\Users\levsh\Documents\TT-GhostNetV2\models2'
-
+    TEST_SPLIT = 0.1  
     IN_CHANNELS   = 1
     IMAGE_SIZE    = 48
     NUM_CLASSES   = 7
@@ -48,7 +48,7 @@ class ConfigExpW: #TODO: changes for dataset ExpW
     SEED          = 42
     DEVICE        = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-os.makedirs(Config.MODEL_SAVE_PATH, exist_ok=True)
+os.makedirs(ConfigExpW.MODEL_SAVE_PATH, exist_ok=True)
 #Трансформы
 train_transform_base = transforms.Compose([
     transforms.Grayscale(num_output_channels=1),

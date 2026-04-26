@@ -1,9 +1,11 @@
 import os
 import torch
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, random_split, Dataset
 from torchvision.datasets import ImageFolder
+from PIL import Image
 
 from config import train_transform_base, val_transform
+from utils import _split, _split_sizes, _make_loaders
 
 
 #Данные
@@ -40,3 +42,57 @@ def build_dataloaders(cfg):
     print(f"Train: {n_train} | Val: {n_val} | Test: {len(test_ds)}")
     print(f"Классы: {full_train.classes}")
     return train_loader, val_loader, test_loader
+
+class ExpWDataset(Dataset):
+    CLASSES = ['angry', 'disgust', 'fear', 'happy', 'sad', 'surprise', 'neutral']
+
+    def __init__(self, root, transform=None):
+        self.transform = transform
+        self.img_dir   = os.path.join(root, 'image', 'origin')
+        label_path     = os.path.join(root, 'label', 'label.lst')
+
+        assert os.path.exists(self.img_dir), f"Нет папки с изображениями: {self.img_dir}"
+        assert os.path.exists(label_path),   f"Нет файла меток: {label_path}"
+
+        self.samples = self._parse_labels(label_path)
+
+    def _parse_labels(self, label_path):
+        samples = []
+        with open(label_path, 'r') as f:
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) < 8:
+                    continue
+                img_name = parts[0]
+                label    = int(parts[7])
+                img_path = os.path.join(self.img_dir, img_name)
+                if os.path.exists(img_path):
+                    samples.append((img_path, label))
+        return samples
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        img_path, label = self.samples[idx]
+        image = Image.open(img_path).convert('RGB')
+        if self.transform:
+            image = self.transform(image)
+        return image, label
+
+    @property
+    def classes(self):
+        return self.CLASSES
+
+
+def build_dataloaders_expw(cfg):
+    full_ds = ExpWDataset(cfg.DATA_PATH, transform=train_transform_base)
+
+    n_test  = int(len(full_ds) * cfg.TEST_SPLIT)
+    n_rest  = len(full_ds) - n_test
+    rest_ds, test_ds = _split_sizes(full_ds, [n_rest, n_test], cfg.SEED)
+
+    train_ds, val_ds = _split(rest_ds, cfg.VAL_SPLIT, cfg.SEED)
+    val_ds.dataset.transform = val_transform
+
+    return _make_loaders(train_ds, val_ds, test_ds, cfg, full_ds.classes)
