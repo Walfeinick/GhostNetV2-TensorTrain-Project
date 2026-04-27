@@ -9,7 +9,7 @@ from data import build_dataloaders_expw
 from models.basemodel import GhostNetV2_Base
 from utils import set_seed, get_scheduler, run_epoch
 
-AUGMENT_EPOCH = 7
+AUGMENT_EPOCH = 4
 
 
 def main():

@@ -7,8 +7,8 @@ from sklearn.metrics import confusion_matrix, classification_report
 
 from config import Config
 from data import build_dataloaders
-from models import TT_GhostNetV2_FER, GhostNetV2_Base
-
+from models import TT_GhostNetV2_FER, GhostNetV2_Base, TTCrossLinear
+from models.tt_cross import convert_linear_to_tt_cross
 
 CLASS_NAMES = ['angry', 'disgust', 'fear', 'happy', 'neutral', 'sad', 'surprise']
 
@@ -49,7 +49,7 @@ def save_confusion_matrix(all_preds, all_labels, model_name, save_path):
     plt.ylabel('Настоящий класс')
     plt.xlabel('Предсказанный класс')
     plt.tight_layout()
-    plt.savefig(save_path, dpi=150)
+    plt.savefig(f'artifacts/{save_path}', dpi=150)
     plt.close()
     print(f"Confusion matrix сохранена: {save_path}")
 
@@ -81,6 +81,19 @@ def main():
     save_confusion_matrix(base_preds, base_labels,
                           'GhostNetV2-Base', 'confusion_matrix_base.png')
 
+#TT-Cross-модель
+    tt_cross_path  = os.path.join(Config.MODEL_SAVE_PATH, 'best_model_tt_cross.pth')
+    tt_cross_model = GhostNetV2_Base(num_classes=Config.NUM_CLASSES, dropout=0.3)
+    tt_cross_model.fc = convert_linear_to_tt_cross(tt_cross_model.fc, rank=16)
+    tt_cross_model.to(Config.DEVICE)
+    checkpoint  = torch.load(tt_cross_path, map_location=Config.DEVICE)
+    tt_cross_model.load_state_dict(checkpoint['model_state'])
+    print(f"TT-Cross-модель загружена | val_acc={checkpoint['val_acc']:.2f}%")
+
+    tt_preds, tt_labels = evaluate(tt_cross_model, test_loader, Config.DEVICE)
+    print_metrics(tt_preds, tt_labels, 'TT-Cross-GhostNetV2')
+    save_confusion_matrix(tt_preds, tt_labels,
+                          'TT-Cross-GhostNetV2', 'confusion_matrix_tt_cross.png')
 
 if __name__ == '__main__':
     main()
