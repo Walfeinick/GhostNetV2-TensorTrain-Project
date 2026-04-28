@@ -10,7 +10,8 @@ from models.basemodel import GhostNetV2_Base
 from utils import set_seed, get_scheduler, run_epoch
 
 AUGMENT_EPOCH = 4
-
+def check_device():
+    print(ConfigExpW.DEVICE)
 
 def main():
     set_seed(ConfigExpW.SEED)
@@ -82,4 +83,6 @@ def main():
 
 
 if __name__ == '__main__':
+    print("DEVICE:")
+    check_device()
     main()

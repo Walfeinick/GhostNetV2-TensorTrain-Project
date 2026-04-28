@@ -17,19 +17,11 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from config import Config, train_transform_full
+from config import Config, PostTrainConfig, train_transform_full
 from data import build_dataloaders
 from models.basemodel import GhostNetV2_Base
 from models.tt_cross import TTCrossLinear, convert_linear_to_tt_cross
 from utils import set_seed, get_scheduler, run_epoch
-
-
-# ─── Параметры дообучения ──────────────────────────────────────────────────────
-FINETUNE_EPOCHS = 20    # эпох дообучения после конвертации
-FREEZE_EPOCHS   = 5     # первые N эпох обучаем только TT-слой
-TT_RANK         = 16    # ранг TT-Cross (совпадает с TT-from-scratch для честного сравнения)
-LR_TT           = 5e-4  # lr для TT-слоя
-LR_BACKBONE     = 1e-4  # lr для backbone при размораживании
 
 
 def build_tt_cross_model(base_checkpoint_path: str) -> GhostNetV2_Base:
@@ -43,7 +35,7 @@ def build_tt_cross_model(base_checkpoint_path: str) -> GhostNetV2_Base:
     print(f"Базовая модель загружена | val_acc={checkpoint['val_acc']:.2f}%")
 
     # Конвертируем FC → TTCrossLinear
-    model.fc = convert_linear_to_tt_cross(model.fc, rank=TT_RANK)
+    model.fc = convert_linear_to_tt_cross(model.fc, rank=PostTrainConfig.TT_RANK)
     model.to(Config.DEVICE)
 
     total = sum(p.numel() for p in model.parameters())
@@ -91,12 +83,12 @@ def main():
 
     optimizer = optim.AdamW(
         filter(lambda p: p.requires_grad, model.parameters()),
-        lr=LR_TT,
+        lr=PostTrainConfig.LR_TT,
         weight_decay=Config.WEIGHT_DECAY
     )
     scheduler = get_scheduler(optimizer,
                                warmup_epochs=2,
-                               total_epochs=FINETUNE_EPOCHS)
+                               total_epochs=PostTrainConfig.FINETUNE_EPOCHS)
     use_amp = Config.DEVICE.type == 'cuda'
     scaler  = torch.amp.GradScaler('cuda', enabled=use_amp)
 
@@ -107,32 +99,32 @@ def main():
 
     AUGMENT_EPOCH = 3  # раньше чем при обучении с нуля — модель уже знает базу
 
-    for epoch in range(1, FINETUNE_EPOCHS + 1):
+    for epoch in range(1, PostTrainConfig.FINETUNE_EPOCHS + 1):
 
         # Размораживаем backbone после FREEZE_EPOCHS эпох
-        if epoch == FREEZE_EPOCHS + 1:
+        if epoch == PostTrainConfig.FREEZE_EPOCHS + 1:
             unfreeze_all(model)
             # Пересоздаём optimizer с разными lr для backbone и TT-слоя
             optimizer = optim.AdamW([
-                {'params': model.fc.parameters(),         'lr': LR_TT},
-                {'params': model.bn_fc.parameters(),      'lr': LR_TT},
-                {'params': model.classifier.parameters(), 'lr': LR_TT},
+                {'params': model.fc.parameters(),         'lr': PostTrainConfig.LR_TT},
+                {'params': model.bn_fc.parameters(),      'lr': PostTrainConfig.LR_TT},
+                {'params': model.classifier.parameters(), 'lr': PostTrainConfig.LR_TT},
                 {'params': [p for n, p in model.named_parameters()
                             if 'fc' not in n and 'bn_fc' not in n
-                            and 'classifier' not in n],   'lr': LR_BACKBONE},
+                            and 'classifier' not in n],   'lr': PostTrainConfig.LR_BACKBONE},
             ], weight_decay=Config.WEIGHT_DECAY)
             scheduler = get_scheduler(optimizer,
                                        warmup_epochs=1,
-                                       total_epochs=FINETUNE_EPOCHS - FREEZE_EPOCHS)
+                                       total_epochs=PostTrainConfig.FINETUNE_EPOCHS - PostTrainConfig.FREEZE_EPOCHS)
             scaler = torch.amp.GradScaler('cuda', enabled=use_amp)
-            print(f"Эпоха {epoch}: backbone разморожен, lr_tt={LR_TT}, lr_backbone={LR_BACKBONE}")
+            print(f"Эпоха {epoch}: backbone разморожен, lr_tt={PostTrainConfig.LR_TT}, lr_backbone={PostTrainConfig.LR_BACKBONE}")
 
         # Прогрессивная аугментация
         if epoch == AUGMENT_EPOCH:
             train_loader.dataset.dataset.transform = train_transform_full
             print(f"  → RandomErasing включён с эпохи {epoch}")
 
-        print(f'\nЭпоха {epoch}/{FINETUNE_EPOCHS}  '
+        print(f'\nЭпоха {epoch}/{PostTrainConfig.FINETUNE_EPOCHS}  '
               f'lr={optimizer.param_groups[0]["lr"]:.2e}')
 
         train_loss, train_acc = run_epoch(model, train_loader, criterion,
@@ -161,9 +153,9 @@ def main():
                 'config': {
                     'num_classes':   Config.NUM_CLASSES,
                     'batch_size':    Config.BATCH_SIZE,
-                    'learning_rate': LR_TT,
+                    'learning_rate': PostTrainConfig.LR_TT,
                     'weight_decay':  Config.WEIGHT_DECAY,
-                    'rank':          TT_RANK,
+                    'rank':          PostTrainConfig.TT_RANK,
                     'image_size':    Config.IMAGE_SIZE,
                     'method':        'tt_cross',
                 }

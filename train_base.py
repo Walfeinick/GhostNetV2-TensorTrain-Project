@@ -3,24 +3,18 @@ import time
 import torch
 import torch.nn as nn
 import torch.optim as optim
-
-from config import Config, train_transform_full
+from config import Config, PostTrainConfig, train_transform_full
 from data import build_dataloaders
-from models import GhostNetV2_Base
-from utils import set_seed, get_scheduler, run_epoch
+from models import GhostNetV2_Base, TT_GhostNetV2_FER, TTCrossLinear
+from utils import set_seed, get_scheduler, run_epoch, start_train_FER2013, build_tt_cross_model, freeze_backbone, get_scheduler
+
 
 
 def main():
-    set_seed(Config.SEED)
+    #Base
 
-    #Данные
-    train_loader, val_loader, _ = build_dataloaders(Config)
-
-    #Модель
     model = GhostNetV2_Base(num_classes=Config.NUM_CLASSES, dropout=0.3).to(Config.DEVICE)
-    print(f"Модель OK | Параметры: {sum(p.numel() for p in model.parameters()):,}")
-
-    #Loss, Optimizer, Scheduler
+        #Loss, Optimizer, Scheduler
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
     optimizer = optim.AdamW(model.parameters(),
                             lr=Config.LEARNING_RATE,
@@ -30,59 +24,49 @@ def main():
                                total_epochs=Config.NUM_EPOCHS)
     use_amp = Config.DEVICE.type == 'cuda'
     scaler  = torch.amp.GradScaler('cuda', enabled=use_amp)
+    start_train_FER2013(model, 'best_model_base.pth', Config, criterion, optimizer, scheduler, use_amp, scaler)
 
-    #Цикл обучения
-    best_acc  = 0.0 
-    best_path = os.path.join(Config.MODEL_SAVE_PATH, 'best_model_base.pth')
-    start     = time.time()
-    history   = {'train_loss': [], 'train_acc': [], 'val_loss': [], 'val_acc': []}
 
-    AUGMENT_EPOCH = 7
+    #TT-model
 
-    for epoch in range(1, Config.NUM_EPOCHS + 1):
-        print(f'\nЭпоха {epoch}/{Config.NUM_EPOCHS}  lr={optimizer.param_groups[0]["lr"]:.2e}')
+    model = TT_GhostNetV2_FER(num_classes=Config.NUM_CLASSES, dropout=0.3).to(Config.DEVICE)
+        #Loss, Optimizer, Scheduler
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+    optimizer = optim.AdamW(model.parameters(),
+                            lr=Config.LEARNING_RATE,
+                            weight_decay=Config.WEIGHT_DECAY)
+    scheduler = get_scheduler(optimizer,
+                               warmup_epochs=5,
+                               total_epochs=Config.NUM_EPOCHS)
+    use_amp = Config.DEVICE.type == 'cuda'
+    scaler  = torch.amp.GradScaler('cuda', enabled=use_amp)
+    start_train_FER2013(model, 'best_model_tt.pth', Config, criterion, optimizer, scheduler, use_amp, scaler)
+    
 
-        if epoch == AUGMENT_EPOCH:
-            train_loader.dataset.dataset.transform = train_transform_full
-            print(f"RandomErasing включён с эпохи {epoch}")
+    #TT-Cross-model
 
-        train_loss, train_acc = run_epoch(model, train_loader, criterion,
-                                          optimizer, scaler, Config.DEVICE,
-                                          use_amp, training=True)
-        val_loss, val_acc     = run_epoch(model, val_loader, criterion,
-                                          optimizer, scaler, Config.DEVICE,
-                                          use_amp, training=False)
-        scheduler.step()
+    model = GhostNetV2_Base(num_classes=Config.NUM_CLASSES, dropout=0.3).to(Config.DEVICE)
+    #загрузка + конвертация
+    base_path = os.path.join(Config.MODEL_SAVE_PATH, 'best_model_base.pth')
+    assert os.path.exists(base_path), (
+        f"Не найден файл базовой модели: {base_path}\n"
+    )
+    model = build_tt_cross_model(base_path)
 
-        history['train_loss'].append(train_loss)
-        history['train_acc'].append(train_acc)
-        history['val_loss'].append(val_loss)
-        history['val_acc'].append(val_acc)
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+    optimizer = optim.AdamW(
+        filter(lambda p: p.requires_grad, model.parameters()),
+        lr=PostTrainConfig.LR_TT,
+        weight_decay=Config.WEIGHT_DECAY
+    )
+    scheduler = get_scheduler(optimizer,
+                               warmup_epochs=2,
+                               total_epochs=PostTrainConfig.FINETUNE_EPOCHS)
+    use_amp = Config.DEVICE.type == 'cuda'
+    scaler  = torch.amp.GradScaler('cuda', enabled=use_amp)
 
-        print(f'  Train: loss: {train_loss:.4f}  acc: {train_acc:.2f}%')
-        print(f'  Val:   loss: {val_loss:.4f}  acc: {val_acc:.2f}%')
+    start_train_FER2013(model, 'best_model_tt_cross.pth', Config, criterion, optimizer, scheduler, use_amp, scaler, PostTrainConfig.FINETUNE_EPOCHS, train_type=1, AUGMENT_EPOCH=3)
 
-        if val_acc > best_acc:
-            best_acc = val_acc
-            torch.save({
-                'epoch':       epoch,
-                'model_state': model.state_dict(),
-                'optim_state': optimizer.state_dict(),
-                'val_acc':     best_acc,
-                'config': {
-                    'num_classes':   Config.NUM_CLASSES,
-                    'batch_size':    Config.BATCH_SIZE,
-                    'learning_rate': Config.LEARNING_RATE,
-                    'weight_decay':  Config.WEIGHT_DECAY,
-                    'rank':          Config.RANK,
-                    'image_size':    Config.IMAGE_SIZE,
-                }
-            }, best_path)
-            print(f'Сохранена лучшая модель (acc={best_acc:.2f}%)')
-
-    elapsed = time.time() - start
-    print(f'\nОбучение завершено за {elapsed/60:.1f} мин')
-    print(f'Лучшая val accuracy: {best_acc:.2f}%')
 
 
 if __name__ == '__main__':
