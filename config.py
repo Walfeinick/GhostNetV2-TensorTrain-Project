@@ -56,6 +56,7 @@ class PostTrainConfig:
     TT_RANK         = 16    # ранг TT-Cross (совпадает с TT-from-scratch для честного сравнения)
     LR_TT           = 5e-4  # lr для TT-слоя
     LR_BACKBONE     = 1e-4  # lr для backbone при размораживании
+    
 #Трансформы
 train_transform_base = transforms.Compose([
     transforms.Grayscale(num_output_channels=1),

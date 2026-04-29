@@ -67,6 +67,7 @@ def run_epoch(model, loader, criterion, optimizer, scaler, device, use_amp, trai
 
 #Запуск цикла обучения
 def start_train_FER2013(model, best_path:str, conf:Config|ConfigExpW, criterion, optimizer, scheduler, use_amp, scaler, n_epoch = Config.NUM_EPOCHS, train_type=0, AUGMENT_EPOCH:int = 7):
+    
 
     set_seed(conf.SEED)
 
@@ -141,7 +142,7 @@ def start_train_FER2013(model, best_path:str, conf:Config|ConfigExpW, criterion,
                     'rank':          conf.RANK,
                     'image_size':    conf.IMAGE_SIZE,
                 }
-            }, best_path)
+            }, os.path.join(Config.MODEL_SAVE_PATH, best_path))
             print(f'Сохранена лучшая модель (acc={best_acc:.2f}%)')
 
     elapsed = time.time() - start
