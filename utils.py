@@ -10,8 +10,8 @@ from torch import nn
 from torch.utils.data import DataLoader, random_split, Dataset
 from torchvision.datasets import ImageFolder
 from PIL import Image
-from config import Config, ConfigExpW, PostTrainConfig, train_transform_base, train_transform_full, val_transform
-from data import build_dataloaders, build_dataloaders_expw
+from config import Config, ConfigExpW, PostTrainConfig
+from data import build_dataloaders
 from models.tt_cross import TTCrossLinear, convert_linear_to_tt_cross
 from models.basemodel import GhostNetV2_Base
 
@@ -108,7 +108,7 @@ def start_train_FER2013(model, best_path:str, conf:Config|ConfigExpW, criterion,
 
         #Прогрессивная аугментация 
         if epoch == AUGMENT_EPOCH:
-            train_loader.dataset.dataset.transform = train_transform_full
+            train_loader.dataset.dataset.transform = conf.train_transform_full
             print(f"RandomErasing включён с эпохи {epoch}")
 
         train_loss, train_acc = run_epoch(model, train_loader, criterion,

@@ -99,7 +99,7 @@ def main():
 
 
     #ExpW
-    _, _, test_loader = build_dataloaders_expw(ConfigExpW)
+    _, _, test_loader = build_dataloaders(ConfigExpW)
 
     #TT-модель
     tt_path    = os.path.join(ConfigExpW.MODEL_SAVE_PATH, 'best_model_tt_expw.pth')
@@ -126,7 +126,7 @@ def main():
                           'GhostNetV2-Base_expw', 'confusion_matrix_base_expw.png')
 
     #TT-Cross-модель
-    tt_cross_path  = os.path.join(ConfigExpW.MODEL_SAVE_PATH, 'best_model_tt_cross.pth') #TODO: add "_expw" when tt-cross model for expw will be ready
+    tt_cross_path  = os.path.join(ConfigExpW.MODEL_SAVE_PATH, 'best_model_tt_cross_expw.pth') #TODO:
     tt_cross_model = GhostNetV2_Base(num_classes=ConfigExpW.NUM_CLASSES, dropout=0.3)
     tt_cross_model.fc = convert_linear_to_tt_cross(tt_cross_model.fc, rank=16)
     tt_cross_model.to(ConfigExpW.DEVICE)

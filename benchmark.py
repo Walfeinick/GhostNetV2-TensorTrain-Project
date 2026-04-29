@@ -155,7 +155,7 @@ def main():
 
 
     #Базовая модель
-    base_path  = os.path.join(ConfigExpW.MODEL_SAVE_PATH, 'best_model_base.pth')
+    base_path  = os.path.join(ConfigExpW.MODEL_SAVE_PATH, 'best_model_base_expw.pth')
     base_model = GhostNetV2_Base(num_classes=ConfigExpW.NUM_CLASSES, dropout=0.3).to(ConfigExpW.DEVICE)
     base_ckpt  = torch.load(base_path, map_location=ConfigExpW.DEVICE)
     base_model.load_state_dict(base_ckpt['model_state'])
@@ -164,7 +164,7 @@ def main():
 
 
     #TT-Cross-модель
-    tt_cross_path  = os.path.join(ConfigExpW.MODEL_SAVE_PATH, 'best_model_tt_cross.pth') # TODO: add "_expw" when tt-cross model be ready
+    tt_cross_path  = os.path.join(ConfigExpW.MODEL_SAVE_PATH, 'best_model_tt_cross_expw.pth') # TODO: add "_expw" when tt-cross model be ready
     tt_cross_model = GhostNetV2_Base(num_classes=ConfigExpW.NUM_CLASSES, dropout=0.3)
     tt_cross_model.fc = convert_linear_to_tt_cross(tt_cross_model.fc, rank=16)
     tt_cross_model.to(ConfigExpW.DEVICE)
