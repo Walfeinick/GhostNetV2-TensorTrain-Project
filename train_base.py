@@ -78,7 +78,7 @@ def train_tt_cross_FER2013():
 
 #Base
 def train_base_ExpW():
-    model = GhostNetV2_Base(num_classes=ConfigExpW.NUM_CLASSES, dropout=0.3).to(ConfigExpW.DEVICE)
+    model = GhostNetV2_Base(num_classes=ConfigExpW.NUM_CLASSES, dropout=0.3, in_channels=ConfigExpW.IN_CHANNELS).to(ConfigExpW.DEVICE)
     #Loss, Optimizer, Scheduler
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
     optimizer = optim.AdamW(model.parameters(),
@@ -96,7 +96,7 @@ def train_base_ExpW():
 
 #TT-model
 def train_tt_ExpW():
-    model = TT_GhostNetV2_FER(num_classes=ConfigExpW.NUM_CLASSES, dropout=0.3).to(ConfigExpW.DEVICE)
+    model = TT_GhostNetV2_FER(num_classes=ConfigExpW.NUM_CLASSES, dropout=0.3, in_channels=ConfigExpW.IN_CHANNELS).to(ConfigExpW.DEVICE)
     #Loss, Optimizer, Scheduler
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
     optimizer = optim.AdamW(model.parameters(),
@@ -115,7 +115,7 @@ def train_tt_ExpW():
 
 #TT-Cross-model
 def train_tt_cross_ExpW():
-    model = GhostNetV2_Base(num_classes=ConfigExpW.NUM_CLASSES, dropout=0.3).to(ConfigExpW.DEVICE)
+    model = GhostNetV2_Base(num_classes=ConfigExpW.NUM_CLASSES, dropout=0.3, in_channels=ConfigExpW.IN_CHANNELS).to(ConfigExpW.DEVICE)
     #загрузка + конвертация
     base_path = os.path.join(ConfigExpW.MODEL_SAVE_PATH, 'best_model_base_expw.pth')
     assert os.path.exists(base_path), (
@@ -176,7 +176,7 @@ def main():
     elif choice == "0":
         sys.exit
     else:
-        print("Invalid command, try 1-9, u badass")
+        print("Invalid command, try 0-11, u badass")
     
 if __name__ == '__main__':
     main()

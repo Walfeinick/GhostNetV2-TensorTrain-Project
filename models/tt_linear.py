@@ -3,7 +3,7 @@ import torch.nn as nn
 
 
 class TTLinear(nn.Module):
-    def __init__(self, in_features=960, out_features=128, rank=16):
+    def __init__(self, in_features=960, out_features=128, rank=16, in_channels = 1):
         super().__init__()
         self.in_features  = in_features   # 8 * 8 * 15
         self.out_features = out_features  # 4 * 4 * 8

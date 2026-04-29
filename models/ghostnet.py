@@ -89,12 +89,12 @@ class GhostBottleneck(nn.Module):
 
 
 class TT_GhostNetV2_FER(nn.Module):
-    def __init__(self, num_classes=7, dropout=0.3):
+    def __init__(self, num_classes=7, dropout=0.3, in_channels = 1):
         super().__init__()
 
         # Stem: 1 в 16, карта остаётся 48x48
         self.stem = nn.Sequential(
-            nn.Conv2d(1, 16, 3, 1, 1, bias=False),
+            nn.Conv2d(in_channels, 16, 3, 1, 1, bias=False),
             nn.BatchNorm2d(16),
             nn.ReLU(inplace=True)
         )

@@ -6,7 +6,7 @@ from tqdm import tqdm
 from sklearn.metrics import confusion_matrix, classification_report
 
 from config import Config, ConfigExpW
-from data import build_dataloaders, build_dataloaders_expw
+from data import build_dataloaders
 from models import TT_GhostNetV2_FER, GhostNetV2_Base, TTCrossLinear
 from models.tt_cross import convert_linear_to_tt_cross
 

@@ -62,7 +62,7 @@ class ConfigExpW:
     DATA_PATH       = r'C:\Users\levsh\Documents\TT-GhostNetV2\data\ExpWConv'
     MODEL_SAVE_PATH = r'C:\Users\levsh\Documents\TT-GhostNetV2\models'
     TEST_SPLIT = 0.1  
-    IN_CHANNELS   = 1
+    IN_CHANNELS   = 3
     IMAGE_SIZE    = 224
     NUM_CLASSES   = 7
 
@@ -86,7 +86,7 @@ class ConfigExpW:
         transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)),
         transforms.ColorJitter(brightness=0.3, contrast=0.3),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5], std=[0.5])
+        transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
     ])
 
     train_transform_full = transforms.Compose([
@@ -97,15 +97,14 @@ class ConfigExpW:
         transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)),
         transforms.ColorJitter(brightness=0.3, contrast=0.3),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5], std=[0.5]),
+        transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
         transforms.RandomErasing(p=0.3, scale=(0.02, 0.1))
     ])
 
     val_transform = transforms.Compose([
-        transforms.Grayscale(num_output_channels=1),
         transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5], std=[0.5])
+        transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
     ])
 
 os.makedirs(ConfigExpW.MODEL_SAVE_PATH, exist_ok=True)
