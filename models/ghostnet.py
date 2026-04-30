@@ -94,7 +94,7 @@ class TT_GhostNetV2_FER(nn.Module):
 
         # Stem: 1 в 16, карта остаётся 48x48
         self.stem = nn.Sequential(
-            nn.Conv2d(in_channels, 16, 3, 1, 1, bias=False),
+            nn.Conv2d(in_channels, 16, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(16),
             nn.ReLU(inplace=True)
         )

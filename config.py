@@ -15,8 +15,8 @@ class Config:
     IMAGE_SIZE    = 48
     NUM_CLASSES   = 7
 
-    BATCH_SIZE    = 64
-    NUM_EPOCHS    = 60
+    BATCH_SIZE    = 32
+    NUM_EPOCHS    = 50
     LEARNING_RATE = 5e-4
     WEIGHT_DECAY  = 3e-4
     RANK          = 16
@@ -51,6 +51,7 @@ class Config:
     ])
 
     val_transform = transforms.Compose([
+        transforms.Grayscale(num_output_channels=1),
         transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.5], std=[0.5])

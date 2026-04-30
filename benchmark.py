@@ -4,18 +4,19 @@ import torch
 import numpy as np
 
 from config import Config, ConfigExpW
-from models import TT_GhostNetV2_FER, GhostNetV2_Base, TTCrossLinear
+from models import TT_GhostNetV2_FER, GhostNetV2_Base
+
 from models.basemodel import GhostNetV2_Base
 from models.tt_cross import convert_linear_to_tt_cross
 
 
-def benchmark_model(model, model_path, cfg, name="Model"):
+def benchmark_model(model, model_path, cfg:Config|ConfigExpW, name="Model"):
     device = cfg.DEVICE
     print(f"\n{'='*50}")
     print(f"  {name}")
     print(f"{'='*50}")
 
-    # 1. Параметры и сжатие
+    #1. Параметры и сжатие
     total_params = sum(p.numel() for p in model.parameters())
 
     try:
@@ -29,23 +30,23 @@ def benchmark_model(model, model_path, cfg, name="Model"):
     compression = linear_full / fc_params
 
     print(f"\n[Параметры]")
-    print(f"  Всего параметров:          {total_params:,}")
-    print(f"  Параметры {fc_name}:       {fc_params:,}")
+    print(f"  Всего параметров:        {total_params:,}")
+    print(f"  Параметры {fc_name}:     {fc_params:,}")
     print(f"  Параметры Linear(960,128): {linear_full:,}")
-    print(f"  Сжатие FC-слоя:            {compression:.1f}x")
+    print(f"  Сжатие FC-слоя:          {compression:.1f}x")
 
-    # 2. Размер файла
+    #2. Размер файла
     size_mb = None
     if os.path.exists(model_path):
         size_mb = os.path.getsize(model_path) / 1e6
         print(f"\n[Размер модели]")
         print(f"  Файл .pth: {size_mb:.2f} MB")
 
+    #3. Латентность на GPU
+    model.eval()
     dummy_gpu = torch.randn(1, cfg.IN_CHANNELS, cfg.IMAGE_SIZE, cfg.IMAGE_SIZE).to(device)
     dummy_cpu = torch.randn(1, cfg.IN_CHANNELS, cfg.IMAGE_SIZE, cfg.IMAGE_SIZE)
 
-    # 3. Латентность на GPU
-    model.eval()
     with torch.no_grad():
         for _ in range(20):
             model(dummy_gpu)
@@ -60,12 +61,12 @@ def benchmark_model(model, model_path, cfg, name="Model"):
             times_gpu.append(time.perf_counter() - start)
 
     print(f"\n[Латентность GPU (batch=1)]")
-    print(f"  Среднее: {np.mean(times_gpu)*1000:.2f} ms")
-    print(f"  Медиана: {np.median(times_gpu)*1000:.2f} ms")
-    print(f"  Мин:     {np.min(times_gpu)*1000:.2f} ms")
-    print(f"  FPS:     {1/np.mean(times_gpu):.1f}")
+    print(f"  Среднее:   {np.mean(times_gpu)*1000:.2f} ms")
+    print(f"  Медиана:   {np.median(times_gpu)*1000:.2f} ms")
+    print(f"  Мин:       {np.min(times_gpu)*1000:.2f} ms")
+    print(f"  FPS:       {1/np.mean(times_gpu):.1f}")
 
-    # 4. Латентность на CPU
+    #4. Латентность на CPU
     model_cpu = model.cpu()
     with torch.no_grad():
         for _ in range(10):
@@ -79,9 +80,9 @@ def benchmark_model(model, model_path, cfg, name="Model"):
             times_cpu.append(time.perf_counter() - start)
 
     print(f"\n[Латентность CPU (batch=1)]")
-    print(f"  Среднее: {np.mean(times_cpu)*1000:.2f} ms")
-    print(f"  Медиана: {np.median(times_cpu)*1000:.2f} ms")
-    print(f"  FPS:     {1/np.mean(times_cpu):.1f}")
+    print(f"  Среднее:   {np.mean(times_cpu)*1000:.2f} ms")
+    print(f"  Медиана:   {np.median(times_cpu)*1000:.2f} ms")
+    print(f"  FPS:       {1/np.mean(times_cpu):.1f}")
 
     model.to(device)
 
@@ -97,67 +98,106 @@ def benchmark_model(model, model_path, cfg, name="Model"):
     }
 
 
-def _print_table(title, tt_r, base_r, tt_cross_r):
+def main():
+    '''
+    #TT-модель
+    tt_path  = os.path.join(Config.MODEL_SAVE_PATH, 'best_model_tt.pth')
+    tt_model = TT_GhostNetV2_FER(num_classes=Config.NUM_CLASSES, dropout=0.3).to(Config.DEVICE)
+    tt_ckpt  = torch.load(tt_path, map_location=Config.DEVICE)
+    tt_model.load_state_dict(tt_ckpt['model_state'])
+
+    tt_results = benchmark_model(tt_model, tt_path, Config, name="TT-GhostNetV2")
+
+
+    #Базовая модель
+    base_path  = os.path.join(Config.MODEL_SAVE_PATH, 'best_model_base.pth')
+    base_model = GhostNetV2_Base(num_classes=Config.NUM_CLASSES, dropout=0.3).to(Config.DEVICE)
+    base_ckpt  = torch.load(base_path, map_location=Config.DEVICE)
+    base_model.load_state_dict(base_ckpt['model_state'])
+
+    base_results = benchmark_model(base_model, base_path, Config, name="GhostNetV2-Base")
+
+
+    #TT-Cross-модель
+    tt_cross_path  = os.path.join(Config.MODEL_SAVE_PATH, 'best_model_tt_cross.pth')
+    tt_cross_model = GhostNetV2_Base(num_classes=Config.NUM_CLASSES, dropout=0.3)
+    tt_cross_model.fc = convert_linear_to_tt_cross(tt_cross_model.fc, rank=16)
+    tt_cross_model.to(Config.DEVICE)
+    tt_cross_ckpt  = torch.load(tt_cross_path, map_location=Config.DEVICE)
+    tt_cross_model.load_state_dict(tt_cross_ckpt['model_state'])
+
+    tt_cross_results = benchmark_model(tt_cross_model, tt_cross_path, Config, name="TT-Cross-GhostNetV2")
+
+
+    #Итоговая таблица
     print(f"\n{'='*60}")
-    print(f"  ИТОГОВОЕ СРАВНЕНИЕ ({title})")
+    print("  ИТОГОВОЕ СРАВНЕНИЕ Dataset FER2013")
     print(f"{'='*60}")
     print(f"{'Метрика':<30} {'TT':>10} {'Base':>10} {'TT-Cross':>10}")
     print("-" * 60)
-    for label, key, fmt in [
-        ('Всего параметров',    'total_params', ','),
-        ('Параметры FC-слоя',   'fc_params',    ','),
-        ('Размер файла (MB)',   'size_mb',      '.2f'),
-        ('Латентность GPU (ms)','gpu_ms',       '.2f'),
-        ('Латентность CPU (ms)','cpu_ms',       '.2f'),
-        ('FPS GPU',             'fps_gpu',      '.1f'),
-        ('FPS CPU',             'fps_cpu',      '.1f'),
-    ]:
-        print(f"{label:<30} {tt_r[key]:>10{fmt}} {base_r[key]:>10{fmt}} {tt_cross_r[key]:>10{fmt}}")
+    print(f"{'Всего параметров':<30} {tt_results['total_params']:>10,} {base_results['total_params']:>10,} {tt_cross_results['total_params']:>10,}")
+    print(f"{'Параметры FC-слоя':<30} {tt_results['fc_params']:>10,} {base_results['fc_params']:>10,} {tt_cross_results['fc_params']:>10,}")
+    print(f"{'Размер файла (MB)':<30} {tt_results['size_mb']:>10.2f} {base_results['size_mb']:>10.2f} {tt_cross_results['size_mb']:>10.2f}")
+    print(f"{'Латентность GPU (ms)':<30} {tt_results['gpu_ms']:>10.2f} {base_results['gpu_ms']:>10.2f} {tt_cross_results['gpu_ms']:>10.2f}")
+    print(f"{'Латентность CPU (ms)':<30} {tt_results['cpu_ms']:>10.2f} {base_results['cpu_ms']:>10.2f} {tt_cross_results['cpu_ms']:>10.2f}")
+    print(f"{'FPS GPU':<30} {tt_results['fps_gpu']:>10.1f} {base_results['fps_gpu']:>10.1f} {tt_cross_results['fps_gpu']:>10.1f}")
+    print(f"{'FPS CPU':<30} {tt_results['fps_cpu']:>10.1f} {base_results['fps_cpu']:>10.1f} {tt_cross_results['fps_cpu']:>10.1f}")
+    '''
+
+#ExpW benchmark
+
+#TT-модель
+    tt_path  = os.path.join(ConfigExpW.MODEL_SAVE_PATH, 'best_model_tt_expw.pth')
+    tt_model = TT_GhostNetV2_FER(num_classes=ConfigExpW.NUM_CLASSES, dropout=0.3, in_channels=ConfigExpW.IN_CHANNELS).to(ConfigExpW.DEVICE)
+    tt_ckpt  = torch.load(tt_path, map_location=ConfigExpW.DEVICE)
+    tt_model.load_state_dict(tt_ckpt['model_state'])
+
+    tt_results = benchmark_model(tt_model, tt_path, ConfigExpW, name="TT-GhostNetV2")
 
 
-def _run_benchmark(cfg, suffixes):
-    """suffixes = {'tt': 'best_model_tt.pth', 'base': ..., 'tt_cross': ...}"""
-    mp = cfg.MODEL_SAVE_PATH
+    #Базовая модель
+    base_path  = os.path.join(ConfigExpW.MODEL_SAVE_PATH, 'best_model_base_expw.pth')
+    base_model = GhostNetV2_Base(num_classes=ConfigExpW.NUM_CLASSES, dropout=0.3, in_channels=ConfigExpW.IN_CHANNELS).to(ConfigExpW.DEVICE)
+    base_ckpt  = torch.load(base_path, map_location=ConfigExpW.DEVICE)
+    base_model.load_state_dict(base_ckpt['model_state'])
 
-    tt_path  = os.path.join(mp, suffixes['tt'])
-    tt_model = TT_GhostNetV2_FER(num_classes=cfg.NUM_CLASSES, dropout=0.3,
-                                  in_channels=cfg.IN_CHANNELS).to(cfg.DEVICE)
-    tt_model.load_state_dict(torch.load(tt_path, map_location=cfg.DEVICE)['model_state'])
-    tt_r = benchmark_model(tt_model, tt_path, cfg, name="TT-GhostNetV2")
+    base_results = benchmark_model(base_model, base_path, ConfigExpW, name="GhostNetV2-Base")
 
-    base_path  = os.path.join(mp, suffixes['base'])
-    base_model = GhostNetV2_Base(num_classes=cfg.NUM_CLASSES, dropout=0.3,
-                                  in_channels=cfg.IN_CHANNELS).to(cfg.DEVICE)
-    base_model.load_state_dict(torch.load(base_path, map_location=cfg.DEVICE)['model_state'])
-    base_r = benchmark_model(base_model, base_path, cfg, name="GhostNetV2-Base")
-
-    tt_cross_path  = os.path.join(mp, suffixes['tt_cross'])
-    tt_cross_model = GhostNetV2_Base(num_classes=cfg.NUM_CLASSES, dropout=0.3,
-                                      in_channels=cfg.IN_CHANNELS)
+    '''
+    #TT-Cross-модель
+    tt_cross_path  = os.path.join(ConfigExpW.MODEL_SAVE_PATH, 'best_model_tt_cross_expw.pth') # TODO: add "_expw" when tt-cross model be ready
+    tt_cross_model = GhostNetV2_Base(num_classes=ConfigExpW.NUM_CLASSES, dropout=0.3)
     tt_cross_model.fc = convert_linear_to_tt_cross(tt_cross_model.fc, rank=16)
-    tt_cross_model.to(cfg.DEVICE)
-    tt_cross_model.load_state_dict(torch.load(tt_cross_path, map_location=cfg.DEVICE)['model_state'])
-    tt_cross_r = benchmark_model(tt_cross_model, tt_cross_path, cfg, name="TT-Cross-GhostNetV2")
+    tt_cross_model.to(ConfigExpW.DEVICE)
+    tt_cross_ckpt  = torch.load(tt_cross_path, map_location=ConfigExpW.DEVICE)
+    tt_cross_model.load_state_dict(tt_cross_ckpt['model_state'])
 
-    return tt_r, base_r, tt_cross_r
+    tt_cross_results = benchmark_model(tt_cross_model, tt_cross_path, ConfigExpW, name="TT-Cross-GhostNetV2")
+    '''
+
+    #Итоговая таблица
+    print(f"\n{'='*60}")
+    print("  ИТОГОВОЕ СРАВНЕНИЕ (Dataset ExpW)")
+    print(f"{'='*60}")
+    print(f"{'Метрика':<30} {'TT':>10} {'Base':>10} {'TT-Cross':>10}")
+    print("-" * 60)
+    print(f"{'Всего параметров':<30} {tt_results['total_params']:>10,} {base_results['total_params']:>10,} ")
+    print(f"{'Параметры FC-слоя':<30} {tt_results['fc_params']:>10,} {base_results['fc_params']:>10,} ")
+    print(f"{'Размер файла (MB)':<30} {tt_results['size_mb']:>10.2f} {base_results['size_mb']:>10.2f} ")
+    print(f"{'Латентность GPU (ms)':<30} {tt_results['gpu_ms']:>10.2f} {base_results['gpu_ms']:>10.2f} ")
+    print(f"{'Латентность CPU (ms)':<30} {tt_results['cpu_ms']:>10.2f} {base_results['cpu_ms']:>10.2f} ")
+    print(f"{'FPS GPU':<30} {tt_results['fps_gpu']:>10.1f} {base_results['fps_gpu']:>10.1f} ")
+    print(f"{'FPS CPU':<30} {tt_results['fps_cpu']:>10.1f} {base_results['fps_cpu']:>10.1f} ")
 
 
-def main():
-    # FER2013
-    tt_r, base_r, tt_cross_r = _run_benchmark(Config, {
-        'tt':       'best_model_tt.pth',
-        'base':     'best_model_base.pth',
-        'tt_cross': 'best_model_tt_cross.pth',
-    })
-    _print_table('Dataset FER2013', tt_r, base_r, tt_cross_r)
 
-    # ExpW
-    tt_r, base_r, tt_cross_r = _run_benchmark(ConfigExpW, {
-        'tt':       'best_model_tt_expw.pth',
-        'base':     'best_model_base_expw.pth',
-        'tt_cross': 'best_model_tt_cross_expw.pth',
-    })
-    _print_table('Dataset ExpW', tt_r, base_r, tt_cross_r)
+#{tt_cross_results['total_params']:>10,}
+#{tt_cross_results['fc_params']:>10,}
+#{tt_cross_results['size_mb']:>10.2f}
+#{tt_cross_results['gpu_ms']:>10.2f}
+#{tt_cross_results['cpu_ms']:>10.2f}
+#{tt_cross_results['fps_gpu']:>10.1f}
+#{tt_cross_results['fps_cpu']:>10.1f}
 
 
 if __name__ == '__main__':

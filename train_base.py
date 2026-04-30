@@ -15,7 +15,7 @@ from evaluate import main as run_evaluate, evaluate, print_metrics, save_confusi
 
 #Base
 def train_base_FER2013():
-    model = GhostNetV2_Base(num_classes=Config.NUM_CLASSES, dropout=0.3).to(Config.DEVICE)
+    model = GhostNetV2_Base(num_classes=Config.NUM_CLASSES, dropout=0.3, in_channels=Config.IN_CHANNELS).to(Config.DEVICE)
         #Loss, Optimizer, Scheduler
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
     optimizer = optim.AdamW(model.parameters(),
@@ -28,11 +28,11 @@ def train_base_FER2013():
     scaler  = torch.amp.GradScaler('cuda', enabled=use_amp)
     start_train_FER2013(model, 'best_model_base.pth', Config, 
                         criterion, optimizer, scheduler, 
-                        use_amp, scaler, )
+                        use_amp, scaler)
 
 #TT-model
 def train_tt_FER2013():
-    model = TT_GhostNetV2_FER(num_classes=Config.NUM_CLASSES, dropout=0.3).to(Config.DEVICE)
+    model = TT_GhostNetV2_FER(num_classes=Config.NUM_CLASSES, dropout=0.3, in_channels=Config.IN_CHANNELS).to(Config.DEVICE)
     #Loss, Optimizer, Scheduler
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
     optimizer = optim.AdamW(model.parameters(),
@@ -50,7 +50,7 @@ def train_tt_FER2013():
 
 #TT-Cross-model
 def train_tt_cross_FER2013():
-    model = GhostNetV2_Base(num_classes=Config.NUM_CLASSES, dropout=0.3).to(Config.DEVICE)
+    model = GhostNetV2_Base(num_classes=Config.NUM_CLASSES, dropout=0.3, in_channels=Config.IN_CHANNELS).to(Config.DEVICE)
     #загрузка + конвертация
     base_path = os.path.join(Config.MODEL_SAVE_PATH, 'best_model_base.pth')
     assert os.path.exists(base_path), (

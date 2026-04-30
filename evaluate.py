@@ -97,13 +97,13 @@ def _run_evaluate(cfg, suffixes, name_suffix=''):
 
 
 def main():
-    # FER2013
+    """    # FER2013
     _run_evaluate(Config, {
         'tt':       'best_model_tt.pth',
         'base':     'best_model_base.pth',
         'tt_cross': 'best_model_tt_cross.pth',
     })
-
+    """
     # ExpW
     _run_evaluate(ConfigExpW, {
         'tt':       'best_model_tt_expw.pth',
