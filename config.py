@@ -113,7 +113,7 @@ os.makedirs(ConfigExpW.MODEL_SAVE_PATH, exist_ok=True)
 class PostTrainConfig:
     # ─── Параметры дообучения ──────────────────────────────────────────────────────
     FINETUNE_EPOCHS = 12    # эпох дообучения после конвертации
-    FREEZE_EPOCHS   = 7    # первые N эпох обучаем только TT-слой
+    FREEZE_EPOCHS   = 5    # первые N эпох обучаем только TT-слой
     TT_RANK         = 16    # ранг TT-Cross (совпадает с TT-from-scratch для честного сравнения)
     LR_TT           = 5e-4  # lr для TT-слоя
     LR_BACKBONE     = 1e-4  # lr для backbone при размораживании

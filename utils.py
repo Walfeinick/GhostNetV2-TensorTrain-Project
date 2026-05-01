@@ -155,19 +155,19 @@ def start_train_ExpW(): #TODO: Сделать функцию для ExpW
 
 #Утилки для Cross
 
-def build_tt_cross_model(base_checkpoint_path: str, TT_RANK:int) -> GhostNetV2_Base:
+def build_tt_cross_model(base_checkpoint_path: str, TT_RANK:int, cfg:Config|ConfigExpW = Config) -> GhostNetV2_Base:
     """
     Загружает обученную базовую модель и конвертирует FC-слой в TTCrossLinear.
     """
     # Загружаем базовую модель
-    model = GhostNetV2_Base(num_classes=Config.NUM_CLASSES, dropout=0.3)
+    model = GhostNetV2_Base(num_classes=cfg.NUM_CLASSES, dropout=0.3, in_channels=cfg.IN_CHANNELS)
     checkpoint = torch.load(base_checkpoint_path, map_location='cpu')
     model.load_state_dict(checkpoint['model_state'])
     print(f"Базовая модель загружена | val_acc={checkpoint['val_acc']:.2f}%")
 
     # Конвертируем FC → TTCrossLinear
     model.fc = convert_linear_to_tt_cross(model.fc, rank=TT_RANK)
-    model.to(Config.DEVICE)
+    model.to(cfg.DEVICE)
 
     total = sum(p.numel() for p in model.parameters())
     tt_p  = sum(p.numel() for p in model.fc.parameters())

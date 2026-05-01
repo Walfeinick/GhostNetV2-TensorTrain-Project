@@ -121,7 +121,7 @@ def train_tt_cross_ExpW():
     assert os.path.exists(base_path), (
         f"Не найден файл базовой модели: {base_path}\n"
     )
-    model = build_tt_cross_model(base_path, PostTrainConfig.TT_RANK)
+    model = build_tt_cross_model(base_path, PostTrainConfig.TT_RANK, cfg=ConfigExpW)
 
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
     optimizer = optim.AdamW(
